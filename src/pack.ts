@@ -4,54 +4,9 @@ export const pack = coda.newPack();
 
 pack.addNetworkDomain("vercel.app");
 
-const SyncResultSchema = coda.makeObjectSchema({
-  properties: {
-    collectionId: {
-      type: coda.ValueType.String,
-      description: "Framer collection ID",
-    },
-    collectionName: {
-      type: coda.ValueType.String,
-      description: "Framer collection name",
-    },
-    itemsAdded: {
-      type: coda.ValueType.Number,
-      description: "Number of items added",
-    },
-    fieldsSet: {
-      type: coda.ValueType.Number,
-      description: "Number of fields configured",
-    },
-    warnings: {
-      type: coda.ValueType.Array,
-      items: { type: coda.ValueType.String },
-      description: "Any warnings from the sync",
-    },
-    published: {
-      type: coda.ValueType.Boolean,
-      description: "Whether the Framer project was published",
-    },
-    deploymentId: {
-      type: coda.ValueType.String,
-      description: "Framer deployment ID if published",
-    },
-    responseColumnId: {
-      type: coda.ValueType.String,
-      description: "Resolved column ID for writing response",
-    },
-    message: {
-      type: coda.ValueType.String,
-      description: "Status message",
-    },
-  },
-  displayProperty: "message",
-  idProperty: "collectionId",
-  featuredProperties: ["message", "published", "collectionName", "itemsAdded"],
-});
-
 pack.addFormula({
   name: "SyncTableToFramer",
-  description: "Sync a Coda table to a Framer collection",
+  description: "Sync a Coda table to a Framer collection and return status message",
   isAction: true,
   parameters: [
     coda.makeParameter({
@@ -79,7 +34,7 @@ pack.addFormula({
     coda.makeParameter({
       type: coda.ParameterType.String,
       name: "slugFieldId",
-      description: "Column name or ID to use as the slug field (e.g., Slug or cUeRj7vVKT)",
+      description: "Column name or ID to use as the slug field (e.g., Short Name or c-abc123)",
     }),
     coda.makeParameter({
       type: coda.ParameterType.Number,
@@ -93,23 +48,10 @@ pack.addFormula({
       description: "Publish and deploy the Framer project after successful sync",
       optional: true,
     }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "responseColumnId",
-      description: "Column name where the sync response will be written (e.g., Status or Sync Result)",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "rowId",
-      description: "Row ID to write the response to (use thisRow.id from the table)",
-      optional: true,
-    }),
   ],
-  resultType: coda.ValueType.Object,
-  schema: SyncResultSchema,
+  resultType: coda.ValueType.String,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish, responseColumnId, rowId],
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
@@ -126,8 +68,6 @@ pack.addFormula({
       slugFieldId,
       rowLimit: rowLimit || 100,
       publish,
-      responseColumnId,
-      rowId,
     };
 
     try {
@@ -141,18 +81,7 @@ pack.addFormula({
       });
 
       const result = response.body as Record<string, unknown>;
-
-      return {
-        collectionId: result.collectionId as string,
-        collectionName: result.collectionName as string,
-        itemsAdded: result.itemsAdded as number,
-        fieldsSet: result.fieldsSet as number,
-        warnings: (result.warnings as string[]) || [],
-        published: result.published === true,
-        deploymentId: (result.deploymentId as string) || "",
-        responseColumnId: (result.responseColumnId as string) || "",
-        message: result.message as string,
-      };
+      return result.message as string;
     } catch (error) {
       if (error instanceof coda.UserVisibleError) {
         throw error;
