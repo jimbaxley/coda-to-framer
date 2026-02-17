@@ -48,10 +48,16 @@ pack.addFormula({
       description: "Publish and deploy the Framer project after successful sync",
       optional: true,
     }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "responseColumn",
+      description: "Column reference where the sync response will be written (e.g., thisRow.Response)",
+      optional: true,
+    }),
   ],
   resultType: coda.ValueType.String,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish],
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish, responseColumn],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
