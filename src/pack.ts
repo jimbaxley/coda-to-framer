@@ -4,52 +4,6 @@ export const pack = coda.newPack();
 
 pack.addNetworkDomain("vercel.app");
 
-async function publishFramerProject(
-  workerUrl: string,
-  framerProjectUrl: string,
-  docId: string,
-  framerApiKey?: string,
-): Promise<{ published: boolean; deploymentId: string; message: string }> {
-  try {
-    const payload = {
-      docId,
-      framerProjectUrl,
-      action: "publish",
-    };
-
-    const response = await fetch(workerUrl, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: {
-        "Content-Type": "application/json",
-        ...(framerApiKey && { "X-Framer-API-Key": framerApiKey }),
-      },
-    });
-
-    if (!response.ok) {
-      return {
-        published: false,
-        deploymentId: "",
-        message: `Publish failed: ${response.statusText}`,
-      };
-    }
-
-    const result = (await response.json()) as Record<string, unknown>;
-    return {
-      published: result.published === true,
-      deploymentId: (result.deploymentId as string) || "",
-      message: (result.message as string) || "Project published successfully",
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      published: false,
-      deploymentId: "",
-      message: `Publish error: ${message}`,
-    };
-  }
-}
-
 const SyncResultSchema = coda.makeObjectSchema({
   properties: {
     collectionId: {
@@ -154,6 +108,7 @@ pack.addFormula({
       collectionName,
       slugFieldId,
       rowLimit: rowLimit || 100,
+      publish,
     };
 
     try {
@@ -168,25 +123,15 @@ pack.addFormula({
 
       const result = response.body as Record<string, unknown>;
 
-      let publishResult = { published: false, deploymentId: "", message: "" };
-
-      if (publish && result.success === true) {
-        publishResult = await publishFramerProject(
-          workerUrl,
-          framerProjectUrl,
-          docId,
-        );
-      }
-
       return {
         collectionId: result.collectionId as string,
         collectionName: result.collectionName as string,
         itemsAdded: result.itemsAdded as number,
         fieldsSet: result.fieldsSet as number,
         warnings: (result.warnings as string[]) || [],
-        published: publishResult.published,
-        deploymentId: publishResult.deploymentId,
-        message: publishResult.message || (result.message as string),
+        published: result.published === true,
+        deploymentId: (result.deploymentId as string) || "",
+        message: result.message as string,
       };
     } catch (error) {
       if (error instanceof coda.UserVisibleError) {
