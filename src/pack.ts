@@ -40,8 +40,9 @@ const SyncResultSchema = coda.makeObjectSchema({
       description: "Status message",
     },
   },
-  displayProperty: "collectionName",
+  displayProperty: "message",
   idProperty: "collectionId",
+  featuredProperties: ["message", "published", "collectionName", "itemsAdded"],
 });
 
 pack.addFormula({
