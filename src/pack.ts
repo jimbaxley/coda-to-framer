@@ -35,6 +35,10 @@ const SyncResultSchema = coda.makeObjectSchema({
       type: coda.ValueType.String,
       description: "Framer deployment ID if published",
     },
+    responseColumnId: {
+      type: coda.ValueType.String,
+      description: "Resolved column ID for writing response",
+    },
     message: {
       type: coda.ValueType.String,
       description: "Status message",
@@ -89,11 +93,17 @@ pack.addFormula({
       description: "Publish and deploy the Framer project after successful sync",
       optional: true,
     }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "responseColumnId",
+      description: "Column name where the sync response will be written (e.g., Status or Sync Result)",
+      optional: true,
+    }),
   ],
   resultType: coda.ValueType.Object,
   schema: SyncResultSchema,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish],
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish, responseColumnId],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
@@ -110,6 +120,7 @@ pack.addFormula({
       slugFieldId,
       rowLimit: rowLimit || 100,
       publish,
+      responseColumnId,
     };
 
     try {
@@ -124,6 +135,11 @@ pack.addFormula({
 
       const result = response.body as Record<string, unknown>;
 
+      // Write result to the specified column if responseColumnId was provided
+      if (responseColumnId) {
+        await context.sync.setUncheckedMetadata("lastSyncResult", result);
+      }
+
       return {
         collectionId: result.collectionId as string,
         collectionName: result.collectionName as string,
@@ -132,6 +148,7 @@ pack.addFormula({
         warnings: (result.warnings as string[]) || [],
         published: result.published === true,
         deploymentId: (result.deploymentId as string) || "",
+        responseColumnId: (result.responseColumnId as string) || "",
         message: result.message as string,
       };
     } catch (error) {
