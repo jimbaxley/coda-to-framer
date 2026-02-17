@@ -99,11 +99,17 @@ pack.addFormula({
       description: "Column name where the sync response will be written (e.g., Status or Sync Result)",
       optional: true,
     }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "rowId",
+      description: "Row ID to write the response to (use thisRow.id from the table)",
+      optional: true,
+    }),
   ],
   resultType: coda.ValueType.Object,
   schema: SyncResultSchema,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish, responseColumnId],
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish, responseColumnId, rowId],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
@@ -121,6 +127,7 @@ pack.addFormula({
       rowLimit: rowLimit || 100,
       publish,
       responseColumnId,
+      rowId,
     };
 
     try {
