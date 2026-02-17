@@ -1,0 +1,41 @@
+{
+  "name": "framer-api-sync-pack",
+  "version": "1.0.0",
+  "description": "Coda Pack for syncing Coda tables to Framer collections via Vercel API",
+  "author": "TeamUP NC",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jimbaxley/coda-to-framer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jimbaxley/coda-to-framer/issues"
+  },
+  "homepage": "https://github.com/jimbaxley/coda-to-framer#readme",
+  "keywords": [
+    "coda",
+    "pack",
+    "framer",
+    "api",
+    "sync",
+    "vercel",
+    "serverless"
+  ],
+  "main": "build/pack.js",
+  "scripts": {
+    "build": "node build.js",
+    "validate": "coda validate build/pack.js",
+    "upload": "coda upload build/pack.js",
+    "release": "coda release build/pack.js"
+  },
+  "dependencies": {
+    "@codahq/packs-sdk": "^1.13.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "esbuild": "^0.27.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

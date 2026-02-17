@@ -1,0 +1,7 @@
+{
+  "packId": 48333,
+  "name": "Framer API Sync",
+  "description": "Sync Coda tables to Framer collections via Cloudflare Worker",
+  "version": "1.0.0",
+  "minimumFeatureSet": "BasePack"
+}
