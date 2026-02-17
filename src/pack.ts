@@ -79,7 +79,7 @@ pack.addFormula({
     coda.makeParameter({
       type: coda.ParameterType.String,
       name: "slugFieldId",
-      description: "Coda column ID to use as the slug field (e.g., cUeRj7vVKT)",
+      description: "Column name or ID to use as the slug field (e.g., Slug or cUeRj7vVKT)",
     }),
     coda.makeParameter({
       type: coda.ParameterType.Number,
@@ -134,11 +134,6 @@ pack.addFormula({
       });
 
       const result = response.body as Record<string, unknown>;
-
-      // Write result to the specified column if responseColumnId was provided
-      if (responseColumnId) {
-        await context.sync.setUncheckedMetadata("lastSyncResult", result);
-      }
 
       return {
         collectionId: result.collectionId as string,
