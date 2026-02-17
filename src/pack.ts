@@ -4,6 +4,52 @@ export const pack = coda.newPack();
 
 pack.addNetworkDomain("vercel.app");
 
+async function publishFramerProject(
+  workerUrl: string,
+  framerProjectUrl: string,
+  docId: string,
+  framerApiKey?: string,
+): Promise<{ published: boolean; deploymentId: string; message: string }> {
+  try {
+    const payload = {
+      docId,
+      framerProjectUrl,
+      action: "publish",
+    };
+
+    const response = await fetch(workerUrl, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+        ...(framerApiKey && { "X-Framer-API-Key": framerApiKey }),
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        published: false,
+        deploymentId: "",
+        message: `Publish failed: ${response.statusText}`,
+      };
+    }
+
+    const result = (await response.json()) as Record<string, unknown>;
+    return {
+      published: result.published === true,
+      deploymentId: (result.deploymentId as string) || "",
+      message: (result.message as string) || "Project published successfully",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      published: false,
+      deploymentId: "",
+      message: `Publish error: ${message}`,
+    };
+  }
+}
+
 const SyncResultSchema = coda.makeObjectSchema({
   properties: {
     collectionId: {
@@ -27,6 +73,14 @@ const SyncResultSchema = coda.makeObjectSchema({
       items: { type: coda.ValueType.String },
       description: "Any warnings from the sync",
     },
+    published: {
+      type: coda.ValueType.Boolean,
+      description: "Whether the Framer project was published",
+    },
+    deploymentId: {
+      type: coda.ValueType.String,
+      description: "Framer deployment ID if published",
+    },
     message: {
       type: coda.ValueType.String,
       description: "Status message",
@@ -45,7 +99,7 @@ pack.addFormula({
       type: coda.ParameterType.String,
       name: "workerUrl",
       description:
-        "Sync endpoint URL (e.g., https://coda-to-framer.vercel.app/api/sync)",
+        "Sync endpoint URL (e.g., https://coda-to-framer-node.vercel.app/api/sync)",
     }),
     coda.makeParameter({
       type: coda.ParameterType.String,
@@ -74,11 +128,17 @@ pack.addFormula({
       description: "Maximum number of rows to sync (default: 100, max: 500)",
       optional: true,
     }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "publish",
+      description: "Publish and deploy the Framer project after successful sync",
+      optional: true,
+    }),
   ],
   resultType: coda.ValueType.Object,
   schema: SyncResultSchema,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit],
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
@@ -108,13 +168,25 @@ pack.addFormula({
 
       const result = response.body as Record<string, unknown>;
 
+      let publishResult = { published: false, deploymentId: "", message: "" };
+
+      if (publish && result.success === true) {
+        publishResult = await publishFramerProject(
+          workerUrl,
+          framerProjectUrl,
+          docId,
+        );
+      }
+
       return {
         collectionId: result.collectionId as string,
         collectionName: result.collectionName as string,
         itemsAdded: result.itemsAdded as number,
         fieldsSet: result.fieldsSet as number,
         warnings: (result.warnings as string[]) || [],
-        message: result.message as string,
+        published: publishResult.published,
+        deploymentId: publishResult.deploymentId,
+        message: publishResult.message || (result.message as string),
       };
     } catch (error) {
       if (error instanceof coda.UserVisibleError) {
