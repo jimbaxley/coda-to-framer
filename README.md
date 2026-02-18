@@ -5,6 +5,10 @@ A Coda Pack that syncs entire Coda tables to Framer collections via a Vercel ser
 **Pack ID**: `48333`  
 **Status**: Active
 
+Includes two actions:
+- `SyncTableToFramer` for full-table sync
+- `SyncRowToFramer` for single-row sync from buttons/`ModifyRows()`
+
 ## Architecture
 
 This is part of a three-component system:
@@ -62,7 +66,7 @@ Status appears in Coda
 
 ## Usage
 
-In your Coda document, use the `SyncTableToFramer` formula (action):
+Use `SyncTableToFramer` for full-table sync:
 
 ```coda
 =SyncTableToFramer(
@@ -74,7 +78,27 @@ In your Coda document, use the `SyncTableToFramer` formula (action):
 )
 ```
 
+Use `SyncRowToFramer` for single-row sync (for button actions, including `ModifyRows()` workflows):
+
+```coda
+=SyncRowToFramer(
+   "https://coda-to-framer-node.vercel.app/api/sync",
+   "https://framer.com/projects/your-project-id",
+   "TableName",
+   "MyFramerCollection",
+   "cUeRj7vZKT",
+   thisRow.[Short Name],
+   false
+)
+```
+
+`SyncRowToFramer` accepts either:
+- API row ID (`i-...`) if you have it, or
+- a unique slug selector value (recommended) from the same column used by `slugFieldId`.
+
 ### Parameters
+
+`SyncTableToFramer`
 
 - **Worker URL** (required): Your Vercel API endpoint (e.g., `https://coda-to-framer-node.vercel.app/api/sync`)
 - **Framer Project URL** (required): Your Framer project (e.g., `https://framer.com/projects/abc123`)
@@ -82,13 +106,45 @@ In your Coda document, use the `SyncTableToFramer` formula (action):
 - **Collection Name** (required): Name for the Framer collection (created if missing)
 - **Slug Field ID** (required): Column ID to use as the unique identifier (e.g., `cUeRj7vZKT`)
 - **Row Limit** (optional): Maximum rows to sync (default: 100, max: 500)
+- **Publish** (optional): If true, backend publishes/deploys after successful sync
+
+`SyncRowToFramer`
+
+- **Worker URL** (required): Your Vercel API endpoint (e.g., `https://coda-to-framer-node.vercel.app/api/sync`)
+- **Framer Project URL** (required): Your Framer project (e.g., `https://framer.com/projects/abc123`)
+- **Table ID or Name** (required): Source Coda table name or ID
+- **Collection Name** (required): Target Framer managed collection
+- **Slug Field ID** (required): Column name or ID used as slug
+- **Row ID** (required): API row ID (`i-...`) or unique slug selector value (for example `thisRow.[Short Name]`)
+- **Publish** (optional): If true, backend publishes/deploys after successful sync
 
 ### Finding Your IDs
 
 **Document ID**: Automatically detected from the current doc  
 **Table Name/ID**: "MyTable" or use the table ID from the URL  
 **Column/Field ID**: Use the format like `cUeRj7vZKT` (found in Coda's API explorer or pack formulas)  
+**Row selector**: Pass API row ID (`i-...`) or the slug value (for example `thisRow.[Short Name]`)  
 **Framer Project URL**: `https://framer.com/projects/abc123`
+
+### `ModifyRows()` pattern
+
+You can call `SyncRowToFramer(...)` inside a button formula and write the returned status text back to the same row:
+
+```coda
+ModifyRows(
+   thisRow,
+   thisTable.[Sync Status],
+   SyncRowToFramer(
+      "https://coda-to-framer-node.vercel.app/api/sync",
+      thisTable.[Framer Project URL],
+      thisTable.[Source Table ID],
+      thisTable.[Collection Name],
+      thisTable.[Slug Column ID],
+      thisRow.[Short Name],
+      false
+   )
+)
+```
 
 ## Development
 
@@ -147,6 +203,7 @@ framer-api-sync/
 ## Limitations
 
 - **Maximum 500 rows per sync** (Coda API limit)
+- **Single-row sync requires a valid row selector**
 - **Requires valid slug field** - Each row must have a value in the slug column to be synced
 - **Worker response timeout** - Syncs timing out (try reducing row count)
 
