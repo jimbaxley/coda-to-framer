@@ -20,6 +20,7 @@ async function runSyncRequest(
     const response = await context.fetcher.fetch({
       method: "POST",
       url: workerUrl,
+      cacheTtlSecs: 0,
       body: JSON.stringify(payload),
       headers: {
         "Content-Type": "application/json",
@@ -113,6 +114,13 @@ pack.addFormula({
       optional: true,
     }),
     coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "deleteMissing",
+      description:
+        "When true, remove Framer collection items not present in the current Coda table snapshot",
+      optional: true,
+    }),
+    coda.makeParameter({
       type: coda.ParameterType.String,
       name: "responseColumn",
       description: "Column reference where the sync response will be written (e.g., thisRow.Response)",
@@ -121,7 +129,7 @@ pack.addFormula({
   ],
   resultType: coda.ValueType.String,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish, responseColumn],
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowLimit, publish, deleteMissing, responseColumn],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
@@ -138,6 +146,7 @@ pack.addFormula({
       slugFieldId,
       rowLimit: rowLimit || 100,
       publish: false,
+      deleteMissing: Boolean(deleteMissing),
       action: "sync",
     };
 
