@@ -107,6 +107,7 @@ Use `SyncRowToFramer` for single-row sync (for button actions, including `Modify
 - **Slug Field ID** (required): Column ID to use as the unique identifier (e.g., `cUeRj7vZKT`)
 - **Row Limit** (optional): Maximum rows to sync (default: 100, max: 500)
 - **Publish** (optional): If true, backend publishes/deploys after successful sync
+- **Delete Missing** (optional): If true, removes items from Framer that are not present in the current Coda table snapshot
 
 `SyncRowToFramer`
 
@@ -178,6 +179,20 @@ coda release build/pack.js 1.0.0
 **Notes**:
 - Keep both secrets configured in the Vercel project for the deployed `/api/sync` function.
 - The pack sends sync parameters to Vercel; secret management lives in Vercel, not the pack.
+
+### Optional backend retry/fallback tuning
+
+The Vercel backend (`coda-to-framer-node`) supports optional environment variables for reliability/performance tuning:
+
+- `CODA_API_RETRY_ATTEMPTS`, `CODA_API_RETRY_DELAY_MS`
+- `CODA_STATE_RETRY_ATTEMPTS`, `CODA_STATE_RETRY_DELAY_MS`
+- `FRAMER_RETRY_ATTEMPTS`, `FRAMER_RETRY_DELAY_MS`
+- `FRAMER_CONNECT_TIMEOUT_MS`, `FRAMER_OPERATION_TIMEOUT_MS`
+- `FRAMER_ADD_CHUNK_SIZE`, `FRAMER_ADD_CHUNK_TIMEOUT_MS`, `FRAMER_ADD_PER_ITEM_TIMEOUT_MS`
+
+Behavior notes:
+- When Coda returns transient empty slug values right after UI edits, backend retries Coda snapshot/mapping before final response.
+- When Framer bulk `addItems` times out, backend falls back to chunked adds first, then per-item only for failed chunks.
 
 ## Folder Structure
 
