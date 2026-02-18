@@ -170,15 +170,14 @@ coda release build/pack.js 1.0.0
 
 ## Architecture Details
 
-### Hybrid Authentication (Option C)
+### Authentication Model (Vercel)
 
-- **Coda Data Extraction**: Uses shared `CODA_API_TOKEN` (service account) stored in Cloudflare Worker secrets
-- **Framer Push**: Uses user-authenticated Framer API key (passed from Coda Pack to Worker)
+- **Coda Data Extraction**: Uses shared `CODA_API_TOKEN` (service account) stored in Vercel environment variables.
+- **Framer Push**: Uses `FRAMER_API_KEY` stored in Vercel environment variables.
 
-**Benefits**:
-- User-specific Framer authentication (different Framer projects per user)
-- Coda extraction uses shared service quota (simplifies setup)
-- Both tokens encrypted
+**Notes**:
+- Keep both secrets configured in the Vercel project for the deployed `/api/sync` function.
+- The pack sends sync parameters to Vercel; secret management lives in Vercel, not the pack.
 
 ## Folder Structure
 
@@ -205,7 +204,7 @@ framer-api-sync/
 - **Maximum 500 rows per sync** (Coda API limit)
 - **Single-row sync requires a valid row selector**
 - **Requires valid slug field** - Each row must have a value in the slug column to be synced
-- **Worker response timeout** - Syncs timing out (try reducing row count)
+- **Vercel function timeout** - Long-running sync/publish calls can time out (try reducing row count or publishing separately)
 
 ## Support
 
