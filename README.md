@@ -64,6 +64,24 @@ Status appears in Coda
    - When prompted, connect your Framer account
    - Visit https://www.framer.com/developers/server-api-introduction for API key
 
+### Coda maker quick start
+
+Current callback model is **backend writes directly to Coda API** (no inbound Coda webhook endpoint is required for this flow).
+
+1. Create these columns in your source table: `Sync Status` (text), `Last Sync Job ID` (text), and optionally `Sync Message`.
+2. Call `SyncRowToFramer(...)` or `SyncTableToFramer(...)` directly (no wrapper required to run sync).
+3. Pass friendly callback values:
+   - `logTableIdOrName`: table to update
+   - `logRowId`: row selector (slug value or `i-...`)
+   - `statusColumnId`: column name (for example `Sync Status`) or `c-...`
+4. Save job IDs using `ExtractSyncJobId(...)`.
+5. Poll with `GetSyncStatus(...)` until `IsSyncTerminalStatus(...)` is true.
+
+### Advanced callback notes
+
+- IDs are optional in common flows. Names/selectors are supported.
+- `messageColumnId` and `sourceStatusColumnId` are reserved for expanded callback behavior.
+
 ## Usage
 
 Use `SyncTableToFramer` for full-table sync:
@@ -77,6 +95,9 @@ Use `SyncTableToFramer` for full-table sync:
   "cUeRj7vZKT"
 )
 ```
+
+The action returns quickly with a pending message like `Sync ⏳ Accepted (job: ...)`.
+Use the returned job ID with `GetSyncStatus(...)` when you want to poll for completion.
 
 Use `SyncRowToFramer` for single-row sync (for button actions, including `ModifyRows()` workflows):
 
@@ -98,6 +119,27 @@ Use `SyncRowToFramer` for single-row sync (for button actions, including `Modify
 
 ### Parameters
 
+### Basic parameters (most makers)
+
+- Worker URL
+- Framer Project URL
+- Table ID or Name
+- Collection Name
+- Slug Field ID
+- Row ID (for `SyncRowToFramer`)
+- Publish (optional)
+- Initial Delay (ms) (optional)
+
+### Callback parameters (optional)
+
+- Log Table ID/Name
+- Log Row ID (row selector or row ID)
+- Status Column ID (name or ID)
+- Message Column ID (reserved)
+- Source Status Column ID (reserved)
+
+### Full parameter reference
+
 `SyncTableToFramer`
 
 - **Worker URL** (required): Your Vercel API endpoint (e.g., `https://coda-to-framer-node.vercel.app/api/sync`)
@@ -108,6 +150,12 @@ Use `SyncRowToFramer` for single-row sync (for button actions, including `Modify
 - **Row Limit** (optional): Maximum rows to sync (default: 100, max: 500)
 - **Publish** (optional): If true, backend publishes/deploys after successful sync
 - **Delete Missing** (optional): If true, removes items from Framer that are not present in the current Coda table snapshot
+- **Initial Delay (ms)** (optional): Delay before backend extraction to allow recent Coda UI edits to become API-visible
+- **Log Table ID/Name** (optional): Coda table where backend callback status should be written
+- **Log Row ID** (optional): Row ID in the log table used by backend callback
+- **Status Column ID** (optional): Target status column name or ID for callback writes
+- **Message Column ID** (optional): Target detailed message column ID for callback writes
+- **Source Status Column ID** (optional): Optional source-row status mirror column ID
 
 `SyncRowToFramer`
 
@@ -118,6 +166,30 @@ Use `SyncRowToFramer` for single-row sync (for button actions, including `Modify
 - **Slug Field ID** (required): Column name or ID used as slug
 - **Row ID** (required): API row ID (`i-...`) or unique slug selector value (for example `thisRow.[Short Name]`)
 - **Publish** (optional): If true, backend publishes/deploys after successful sync
+- **Initial Delay (ms)** (optional): Delay before backend extraction to allow recent Coda UI edits to become API-visible
+- **Log Table ID/Name** (optional): Coda table where backend callback status should be written
+- **Log Row ID** (optional): Row ID in the log table used by backend callback
+- **Status Column ID** (optional): Target status column name or ID for callback writes
+- **Message Column ID** (optional): Target detailed message column ID for callback writes
+- **Source Status Column ID** (optional): Optional source-row status mirror column ID
+
+`GetSyncStatus`
+
+- **Worker URL** (required): Your Vercel API endpoint
+- **Job ID** (required): Job ID returned by sync action
+
+`ExtractSyncJobId`
+
+- **Sync Response** (required): Text returned by `SyncTableToFramer` or `SyncRowToFramer`
+
+`IsSyncTerminalStatus`
+
+- **Status Text** (required): Text from `GetSyncStatus(...)` or your status column
+
+`NormalizeSyncStatus`
+
+- **Status Text** (required): Text from `GetSyncStatus(...)` or your status column
+- Returns one of: `pending`, `running`, `succeeded`, `failed`, `unknown`
 
 ### Finding Your IDs
 
@@ -129,7 +201,7 @@ Use `SyncRowToFramer` for single-row sync (for button actions, including `Modify
 
 ### `ModifyRows()` pattern
 
-You can call `SyncRowToFramer(...)` inside a button formula and write the returned status text back to the same row:
+You can call `SyncRowToFramer(...)` inside a button formula and write the immediate pending status text back to the same row:
 
 ```coda
 ModifyRows(
@@ -146,6 +218,96 @@ ModifyRows(
    )
 )
 ```
+
+`ModifyRows(...)` is optional. Use it only when you want to write immediate returned text in the same button step.
+
+### Polling pattern with `GetSyncStatus`
+
+Use a follow-up button or automation step to poll by job ID:
+
+```coda
+ModifyRows(
+   thisRow,
+   thisTable.[Sync Status],
+   GetSyncStatus(
+      "https://coda-to-framer-node.vercel.app/api/sync",
+      thisRow.[Last Sync Job ID]
+   )
+)
+```
+
+### Store job ID without manual parsing
+
+Use `ExtractSyncJobId(...)` to save the job ID from the pending response text:
+
+```coda
+WithName(
+   SyncRowToFramer(
+      "https://coda-to-framer-node.vercel.app/api/sync",
+      thisTable.[Framer Project URL],
+      thisTable.[Source Table ID],
+      thisTable.[Collection Name],
+      thisTable.[Slug Column ID],
+      thisRow.[Short Name],
+      false
+   ),
+   _resp,
+   ModifyRows(
+      thisRow,
+      thisTable.[Sync Status], _resp,
+      thisTable.[Last Sync Job ID], ExtractSyncJobId(_resp)
+   )
+)
+```
+
+### Stop polling when terminal
+
+Use `IsSyncTerminalStatus(...)` in your button/automation condition:
+
+```coda
+If(
+   IsSyncTerminalStatus(thisRow.[Sync Status]),
+   thisRow.[Sync Status],
+   ModifyRows(
+      thisRow,
+      thisTable.[Sync Status],
+      GetSyncStatus(
+         "https://coda-to-framer-node.vercel.app/api/sync",
+         thisRow.[Last Sync Job ID]
+      )
+   )
+)
+```
+
+### Branching by normalized status
+
+Use a stable enum for automations:
+
+```coda
+SwitchIf(
+   NormalizeSyncStatus(thisRow.[Sync Status]) = "succeeded", "Done",
+   NormalizeSyncStatus(thisRow.[Sync Status]) = "failed", "Needs attention",
+   NormalizeSyncStatus(thisRow.[Sync Status]) = "running", "In progress",
+   NormalizeSyncStatus(thisRow.[Sync Status]) = "pending", "Queued",
+   "Unknown"
+)
+```
+
+## Webhook note
+
+- This package currently uses **direct Coda API callback writes** from backend.
+- A dedicated inbound webhook receiver in Coda is optional architecture for future expansion, but not required by the current implementation.
+
+### Naming compatibility
+
+- Existing formula parameter names stay the same for backward compatibility (`logRowId`, `statusColumnId`).
+- Backend now also accepts clearer callback aliases (`statusRow`, `statusColumn`, `statusSlugField`) so naming can evolve without breaking existing docs/formulas.
+
+## Do I need `ModifyRows(...)`?
+
+- No. `ModifyRows(...)` is not required to run sync.
+- Use `ModifyRows(...)` only if you want to immediately write the returned pending text into a specific cell.
+- If callback fields are configured, backend can write status asynchronously without wrapping the sync call.
 
 ## Development
 
