@@ -574,7 +574,8 @@ pack.addSyncTable({
       if (response.status >= 400) {
         throw new Error(`Failed to fetch collections: ${response.status} ${response.statusText}`);
       }
-      const body = await response.json();
+      // fetcher returns already-parsed body property
+      const body = (response.body ?? {}) as { collections?: any[] };
       const cols = Array.isArray(body.collections) ? body.collections : [];
       // map to table rows, dropping any entry missing a usable id
       const rows = cols
