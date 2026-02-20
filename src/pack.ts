@@ -568,7 +568,10 @@ pack.addSyncTable({
       )}`;
       // add caching to avoid duplicate network requests during sync
       const response = await context.fetcher.fetch({ method: "GET", url, cacheTtlSecs: 300 });
-      if (!response.ok) {
+      // some versions of the fetcher return ok===undefined even on 200,
+      // which leads to spurious errors like "200 undefined". guard only on
+      // an actual error status.
+      if (response.status >= 400) {
         throw new Error(`Failed to fetch collections: ${response.status} ${response.statusText}`);
       }
       const body = await response.json();
