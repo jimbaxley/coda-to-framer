@@ -525,6 +525,60 @@ pack.addSyncTable({
   },
 });
 
+// new: table for listing Framer collections
+pack.addSyncTable({
+  name: "FramerCollections",
+  identityName: "FramerCollection",
+  description: "List all managed Collections in a Framer project through the worker",
+  schema: coda.makeObjectSchema({
+    idProperty: "id",
+    displayProperty: "name",
+    properties: {
+      id: { type: coda.ValueType.String, required: true },
+      name: { type: coda.ValueType.String },
+      // raw `fields` array from Framer; item schema left unspecified so users can open details
+      fields: { type: coda.ValueType.Array, items: { type: coda.ValueType.Object, properties: {} } },
+      raw: { type: coda.ValueType.Object, properties: {} },
+    },
+  }),
+  formula: {
+    name: "ListFramerCollections",
+    description: "Retrieve all collections from a Framer project (worker must support /api/collections)",
+    parameters: [
+      coda.makeParameter({
+        type: coda.ParameterType.String,
+        name: "workerUrl",
+        description: "Sync endpoint URL (e.g., https://coda-to-framer-node.vercel.app)",
+      }),
+      coda.makeParameter({
+        type: coda.ParameterType.String,
+        name: "framerProjectUrl",
+        description: "Framer project URL (e.g., https://framer.com/projects/abc123)",
+      }),
+    ],
+    execute: async ([workerUrl, projectUrl], context) => {
+      const base = String(workerUrl || "").replace(/\/+$/, "");
+      const url = `${base}/api/collections?projectUrl=${encodeURIComponent(
+        projectUrl || "",
+      )}`;
+      const response = await context.fetcher.fetch({ method: "GET", url });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch collections: ${response.status} ${response.statusText}`);
+      }
+      const body = await response.json();
+      const cols = Array.isArray(body.collections) ? body.collections : [];
+      // ensure each item has an id property
+      const rows = cols.map((c) => ({
+        id: String(c?.id || ""),
+        name: String(c?.name || ""),
+        fields: Array.isArray(c?.fields) ? c.fields : [],
+        raw: c,
+      }));
+      return { result: rows };
+    },
+  },
+});
+
 // --- Top-level function, not inside formula ---
 async function runSyncAsync(
   workerUrl: string,
