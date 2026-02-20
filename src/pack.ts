@@ -566,7 +566,8 @@ pack.addSyncTable({
       const url = `${base}/api/collections?projectUrl=${encodeURIComponent(
         projectUrl || "",
       )}`;
-      const response = await context.fetcher.fetch({ method: "GET", url });
+      // add caching to avoid duplicate network requests during sync
+      const response = await context.fetcher.fetch({ method: "GET", url, cacheTtlSecs: 300 });
       if (!response.ok) {
         throw new Error(`Failed to fetch collections: ${response.status} ${response.statusText}`);
       }
