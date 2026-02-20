@@ -557,7 +557,12 @@ pack.addSyncTable({
       }),
     ],
     execute: async ([workerUrl, projectUrl], context) => {
-      const base = String(workerUrl || "").replace(/\/+$/, "");
+      // normalize workerUrl: strip trailing slashes and remove /api/sync
+      let base = String(workerUrl || "").trim();
+      base = base.replace(/\/+$/, "");
+      if (base.endsWith("/api/sync")) {
+        base = base.slice(0, -"/api/sync".length);
+      }
       const url = `${base}/api/collections?projectUrl=${encodeURIComponent(
         projectUrl || "",
       )}`;
