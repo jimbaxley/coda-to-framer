@@ -573,14 +573,17 @@ pack.addSyncTable({
       }
       const body = await response.json();
       const cols = Array.isArray(body.collections) ? body.collections : [];
-      // ensure each item has an id property
-      const rows = cols.map((c) => ({
-        id: String(c?.id || ""),
-        name: String(c?.name || ""),
-        fields: Array.isArray(c?.fields) ? c.fields : [],
-        raw: c,
-      }));
-      return { result: rows };
+      // map to table rows, dropping any entry missing a usable id
+      const rows = cols
+        .map((c) => ({
+          id: String(c?.id || "").trim(),
+          name: String(c?.name || ""),
+          fields: Array.isArray(c?.fields) ? c.fields : [],
+          raw: c,
+        }))
+        .filter((r) => r.id);
+      // explicit continuation field (none)
+      return { result: rows, continuation: undefined };
     },
   },
 });
