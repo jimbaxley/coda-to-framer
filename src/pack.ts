@@ -578,6 +578,11 @@ pack.addSyncTable({
         .map((c) => ({
           id: String(c?.id || "").trim(),
           name: String(c?.name || ""),
+          slug: String(c?.slug || ""),
+          readonly: Boolean(c?.readonly),
+          managedBy: String(c?.managedBy || ""),
+          createdAt: String(c?.createdAt || ""),
+          updatedAt: String(c?.updatedAt || ""),
           fields: Array.isArray(c?.fields) ? c.fields : [],
           raw: c,
         }))
