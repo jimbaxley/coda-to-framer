@@ -1,10 +1,39 @@
-import * as coda from "@codahq/packs-sdk";
+declare function setTimeout(handler: (...args: unknown[]) => void, timeout?: number): unknown;
 
+import * as coda from "@codahq/packs-sdk";
 declare function setTimeout(handler: (...args: unknown[]) => void, timeout?: number): unknown;
 
 export const pack = coda.newPack();
-
 pack.addNetworkDomain("vercel.app");
+
+// Require user to connect with API key for backend authentication
+pack.setUserAuthentication({
+  type: coda.AuthenticationType.HeaderBearerToken,
+  instructionsUrl: "https://github.com/jimbaxley/coda-to-framer-node#securing-the-api-endpoint",
+});
+
+// Formula to generate a secure random API key (hex, 32 bytes)
+pack.addFormula({
+  name: "GenerateApiKey",
+  description: "Generate a secure random API key (32 bytes, hex)",
+  parameters: [],
+  resultType: coda.ValueType.String,
+  execute: async () => {
+    // Use crypto if available, else fallback to Math.random (less secure)
+    if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.getRandomValues === "function") {
+      const arr = new Uint8Array(32);
+      globalThis.crypto.getRandomValues(arr);
+      return Array.from(arr).map(b => b.toString(16).padStart(2, "0")).join("");
+    } else {
+      // Fallback for environments without crypto
+      let key = "";
+      for (let i = 0; i < 32; i++) {
+        key += Math.floor(Math.random() * 256).toString(16).padStart(2, "0");
+      }
+      return key;
+    }
+  },
+});
 
 type WorkerResponse = {
   accepted?: boolean;
@@ -67,9 +96,7 @@ function isRetryableStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
 }
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+// Removed wait function; Coda runtime does not support setTimeout.
 
 function extractJobId(text: string) {
   const match = text.match(/job:\s*([a-zA-Z0-9-]+)/i);
@@ -339,10 +366,6 @@ async function runSyncRequest(
 
       const result = (response.body ?? {}) as WorkerResponse;
       if (response.status >= 400) {
-        if (attempt < maxAttempts && isRetryableStatus(response.status)) {
-          await wait(baseDelayMs * attempt);
-          continue;
-        }
         throw new coda.UserVisibleError(result.message || `Request failed (${response.status})`);
       }
 
@@ -352,10 +375,7 @@ async function runSyncRequest(
         throw error;
       }
       lastError = error;
-      if (attempt < maxAttempts) {
-        await wait(baseDelayMs * attempt);
-        continue;
-      }
+      break;
     }
   }
 
@@ -612,96 +632,104 @@ pack.addFormula({
   name: "SyncTableToFramer",
   description: "Sync a Coda table to a Framer collection and return status message",
   isAction: true,
-  parameters: [
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "workerUrl",
-      description:
-        "Sync endpoint URL (e.g., https://coda-to-framer-node.vercel.app/api/sync)",
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "framerProjectUrl",
-      description: "Framer project URL (e.g., https://framer.com/projects/abc123)",
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "tableIdOrName",
-      description:
-        "Coda table ID or name (e.g., grid-abc123 or table name in quotes)",
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "collectionName",
-      description: "Name for the Framer collection (will be created if it doesn't exist)",
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "slugFieldId",
-      description: "Column name or ID to use as the slug field (e.g., Short Name or c-abc123)",
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.Number,
-      name: "rowLimit",
-      description: "Maximum number of rows to sync (default: 100, max: 500)",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.Boolean,
-      name: "publish",
-      description: "Publish and deploy the Framer project after successful sync",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.Boolean,
-      name: "deleteMissing",
-      description:
-        "When true, remove Framer collection items not present in the current Coda table snapshot",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.Number,
-      name: "initialDelayMs",
-      description: "Delay before backend extract to allow Coda UI edits to become API-visible",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "responseColumn",
-      description: "Column reference where the sync response will be written (e.g., thisRow.Response)",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "logTableIdOrName",
-      description: "Optional Coda log table ID/name for backend callback writes",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "logRowId",
-      description: "Optional row ID or selector value in the callback table",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "statusColumnId",
-      description: "Optional status column name or ID used by backend callback",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "messageColumnId",
-      description: "Optional detailed message column ID for backend callback",
-      optional: true,
-    }),
-    coda.makeParameter({
-      type: coda.ParameterType.String,
-      name: "sourceStatusColumnId",
-      description: "Optional source-row status column ID to mirror job state",
-      optional: true,
-    }),
-  ],
+     parameters: [
+       // Required parameters first
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "workerUrl",
+         description:
+           "Sync endpoint URL (e.g., https://coda-to-framer-node.vercel.app/api/sync)",
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "framerProjectUrl",
+         description: "Framer project URL (e.g., https://framer.com/projects/abc123)",
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "tableIdOrName",
+         description:
+           "Coda table ID or name (e.g., grid-abc123 or table name in quotes)",
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "collectionName",
+         description: "Name for the Framer collection (will be created if it doesn't exist)",
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "slugFieldId",
+         description: "Column name or ID to use as the slug field (e.g., Short Name or c-abc123)",
+       }),
+       // Optional parameters after all required
+       coda.makeParameter({
+         type: coda.ParameterType.Number,
+         name: "rowLimit",
+         description: "Maximum number of rows to sync (default: 100, max: 500)",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.Boolean,
+         name: "publish",
+         description: "Publish and deploy the Framer project after successful sync",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.Boolean,
+         name: "deleteMissing",
+         description:
+           "When true, remove Framer collection items not present in the current Coda table snapshot",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.Number,
+         name: "initialDelayMs",
+         description: "Delay before backend extract to allow Coda UI edits to become API-visible",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "responseColumn",
+         description: "Column reference where the sync response will be written (e.g., thisRow.Response)",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "logTableIdOrName",
+         description: "Optional Coda log table ID/name for backend callback writes",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "logRowId",
+         description: "Optional row ID or selector value in the callback table",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "statusColumnId",
+         description: "Optional status column name or ID used by backend callback",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "messageColumnId",
+         description: "Optional detailed message column ID for backend callback",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "sourceStatusColumnId",
+         description: "Optional source-row status column ID to mirror job state",
+         optional: true,
+       }),
+       coda.makeParameter({
+         type: coda.ParameterType.String,
+         name: "linkedCollectionName",
+         description: "Name of a Framer collection to link reference fields to (e.g. \"Products\")",
+         optional: true,
+       }),
+     ],
   resultType: coda.ValueType.String,
   execute: async (
     [
@@ -720,6 +748,7 @@ pack.addFormula({
       statusColumnId,
       messageColumnId,
       sourceStatusColumnId,
+      linkedCollectionName,
     ],
     context,
   ) => {
@@ -774,6 +803,7 @@ pack.addFormula({
       : undefined;
 
     const requestId = createRequestId();
+    const normalizedLinkedCollectionName = String(linkedCollectionName || "").trim();
     const payload = {
       requestId,
       idempotencyKey: makeIdempotencyKey(requestId),
@@ -787,6 +817,7 @@ pack.addFormula({
       deleteMissing: Boolean(deleteMissing),
       initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : undefined,
       action: "sync",
+      ...(normalizedLinkedCollectionName ? { linkedCollectionName: normalizedLinkedCollectionName } : {}),
       ...(callbackPayload ? { callback: callbackPayload } : {}),
     };
 
