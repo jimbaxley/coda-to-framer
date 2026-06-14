@@ -1023,6 +1023,12 @@ pack.addFormula({
       description: "Slug value of the row to remove (e.g., thisRow.[Short Name])",
     }),
     coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "publish",
+      description: "Publish and deploy the Framer project after removing the item",
+      optional: true,
+    }),
+    coda.makeParameter({
       type: coda.ParameterType.Number,
       name: "initialDelayMs",
       description: "Delay before processing to allow Coda edits to become API-visible",
@@ -1037,7 +1043,7 @@ pack.addFormula({
   ],
   resultType: coda.ValueType.String,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowId, initialDelayMs, statusColumnId],
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowId, publish, initialDelayMs, statusColumnId],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
@@ -1070,6 +1076,7 @@ pack.addFormula({
       slugFieldId,
       rowId,
       action: "deleteRow",
+      publish: Boolean(publish),
       initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : undefined,
       callback: callbackPayload,
     };
