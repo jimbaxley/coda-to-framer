@@ -988,6 +988,97 @@ pack.addFormula({
 });
 
 pack.addFormula({
+  name: "DeleteRowFromFramer",
+  description: "Remove a single item from a Framer collection by slug and write status back to the row",
+  isAction: true,
+  parameters: [
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "workerUrl",
+      description: "Sync endpoint URL (e.g., https://coda-to-framer-node.vercel.app/api/sync)",
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "framerProjectUrl",
+      description: "Framer project URL",
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "tableIdOrName",
+      description: "Coda table ID or name",
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "collectionName",
+      description: "Name of the Framer collection to remove the item from",
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "slugFieldId",
+      description: "Column name or ID used as the slug field (e.g., Short Name or c-abc123)",
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "rowId",
+      description: "Slug value of the row to remove (e.g., thisRow.[Short Name])",
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.Number,
+      name: "initialDelayMs",
+      description: "Delay before processing to allow Coda edits to become API-visible",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "statusColumnId",
+      description: "Column name to write the result status back to (default: Server Status)",
+      optional: true,
+    }),
+  ],
+  resultType: coda.ValueType.String,
+  execute: async (
+    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowId, initialDelayMs, statusColumnId],
+    context,
+  ) => {
+    const docId = context.invocationLocation?.docId;
+    if (!docId) {
+      throw new coda.UserVisibleError("Could not determine document ID");
+    }
+
+    const resolvedStatusColumn = normalizeCallbackColumnNameOrId(statusColumnId, "Server Status");
+    const callbackRowSelector = normalizeCallbackRowSelector(rowId);
+
+    const callbackPayload = {
+      statusDocId: docId,
+      statusTableIdOrName: normalizeCallbackTableNameOrId(tableIdOrName, String(tableIdOrName)),
+      statusRow: callbackRowSelector,
+      statusRowSelector: callbackRowSelector,
+      statusColumn: resolvedStatusColumn,
+      statusColumnNameOrId: resolvedStatusColumn,
+      statusSlugField: slugFieldId,
+      statusSlugFieldId: slugFieldId,
+    };
+
+    const requestId = createRequestId();
+    const payload = {
+      requestId,
+      idempotencyKey: makeIdempotencyKey(requestId),
+      docId,
+      tableIdOrName,
+      framerProjectUrl,
+      collectionName,
+      slugFieldId,
+      rowId,
+      action: "deleteRow",
+      initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : undefined,
+      callback: callbackPayload,
+    };
+
+    return runSyncAsync(workerUrl, payload, context);
+  },
+});
+
+pack.addFormula({
   name: "GetSyncStatus",
   description: "Get current status text for a previously submitted async sync job",
   isAction: true,
