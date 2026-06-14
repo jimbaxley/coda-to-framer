@@ -1057,6 +1057,7 @@ pack.addFormula({
     const callbackPayload = {
       statusDocId: docId,
       statusTableIdOrName: normalizeCallbackTableNameOrId(tableIdOrName, String(tableIdOrName)),
+      statusTableInput: "",
       statusRow: callbackRowSelector,
       statusRowSelector: callbackRowSelector,
       statusColumn: resolvedStatusColumn,
