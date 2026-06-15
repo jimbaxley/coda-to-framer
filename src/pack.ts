@@ -92,6 +92,10 @@ function makeIdempotencyKey(requestId: string) {
   return `idem_${requestId}`;
 }
 
+function makeRowIdempotencyKey(docId: string, tableIdOrName: string, rowId: string) {
+  return `row-${docId}-${tableIdOrName}-${rowId}`;
+}
+
 function isRetryableStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
 }
@@ -734,6 +738,12 @@ pack.addFormula({
          description: "Name of a Framer collection to link reference fields to (e.g. \"Products\")",
          optional: true,
        }),
+       coda.makeParameter({
+         type: coda.ParameterType.Boolean,
+         name: "bypassConvex",
+         description: "When true, skip the Convex staging area and sync directly to Framer",
+         optional: true,
+       }),
      ],
   resultType: coda.ValueType.String,
   execute: async (
@@ -754,6 +764,7 @@ pack.addFormula({
       messageColumnId,
       sourceStatusColumnId,
       linkedCollectionName,
+      bypassConvex,
     ],
     context,
   ) => {
@@ -822,6 +833,7 @@ pack.addFormula({
       deleteMissing: Boolean(deleteMissing),
       initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : undefined,
       action: "sync",
+      bypassConvex: Boolean(bypassConvex),
       ...(normalizedLinkedCollectionName ? { linkedCollectionName: normalizedLinkedCollectionName } : {}),
       ...(callbackPayload ? { callback: callbackPayload } : {}),
     };
@@ -910,6 +922,12 @@ pack.addFormula({
       description: "Optional source-row status column ID to mirror job state",
       optional: true,
     }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "bypassConvex",
+      description: "When true, skip the Convex staging area and sync directly to Framer",
+      optional: true,
+    }),
   ],
   resultType: coda.ValueType.String,
   execute: async (
@@ -927,6 +945,7 @@ pack.addFormula({
       statusColumnId,
       messageColumnId,
       sourceStatusColumnId,
+      bypassConvex,
     ],
     context,
   ) => {
@@ -989,7 +1008,7 @@ pack.addFormula({
 
     const payload = {
       requestId,
-      idempotencyKey: makeIdempotencyKey(requestId),
+      idempotencyKey: makeRowIdempotencyKey(docId, String(tableIdOrName), String(rowId)),
       docId,
       tableIdOrName,
       framerProjectUrl,
@@ -997,8 +1016,9 @@ pack.addFormula({
       slugFieldId,
       rowId,
       publish: Boolean(publish),
-      initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : undefined,
+      initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : 3000,
       action: "rowSync",
+      bypassConvex: Boolean(bypassConvex),
       ...(callbackPayload ? { callback: callbackPayload } : {}),
     };
 
@@ -1083,6 +1103,12 @@ pack.addFormula({
       description: "Optional source-row status column ID to mirror job state",
       optional: true,
     }),
+    coda.makeParameter({
+      type: coda.ParameterType.Boolean,
+      name: "bypassConvex",
+      description: "When true, skip the Convex staging area and sync directly to Framer",
+      optional: true,
+    }),
   ],
   resultType: coda.ValueType.String,
   execute: async (
@@ -1100,6 +1126,7 @@ pack.addFormula({
       logRowId,
       messageColumnId,
       sourceStatusColumnId,
+      bypassConvex,
     ],
     context,
   ) => {
@@ -1161,7 +1188,8 @@ pack.addFormula({
       rowId,
       action: "deleteRow",
       publish: Boolean(publish),
-      initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : undefined,
+      initialDelayMs: typeof initialDelayMs === "number" ? initialDelayMs : 3000,
+      bypassConvex: Boolean(bypassConvex),
       callback: callbackPayload,
     };
 
