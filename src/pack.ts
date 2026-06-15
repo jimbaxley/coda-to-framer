@@ -343,6 +343,11 @@ function normalizeCallbackColumnNameOrId(value: unknown, fallback = "") {
   return text;
 }
 
+function looksLikeSourceStatusColumn(value: unknown) {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  return normalized === "serverstatus" || normalized === "syncstatus";
+}
+
 async function runSyncRequest(
   workerUrl: string,
   payload: Record<string, unknown>,
@@ -932,6 +937,7 @@ pack.addFormula({
       throw new coda.UserVisibleError("Could not determine document ID");
     }
 
+    const requestId = createRequestId();
     const hasExplicitCallbackTable = Boolean(logTableIdOrName);
     const callbackTableInput = hasExplicitCallbackTable
       ? String(logTableIdOrName || "").trim()
@@ -939,10 +945,24 @@ pack.addFormula({
     const callbackTableName = hasExplicitCallbackTable
       ? normalizeCallbackTableNameOrId(logTableIdOrName, "")
       : normalizeCallbackTableNameOrId(tableIdOrName, String(tableIdOrName));
-    const callbackRowSelector = normalizeCallbackRowSelector(logRowId || invocationRowId || rowId);
+    const explicitLogRowSelector = String(logRowId || "").trim() === String(rowId || "").trim()
+      ? requestId
+      : (logRowId || requestId);
+    const callbackRowSelector = normalizeCallbackRowSelector(
+      hasExplicitCallbackTable ? explicitLogRowSelector : (logRowId || invocationRowId || rowId),
+    );
     const defaultStatusColumn = logTableIdOrName ? "Status" : "Response";
     const requestedStatusColumn = normalizeCallbackColumnNameOrId(statusColumnId);
-    const resolvedStatusColumn = requestedStatusColumn || defaultStatusColumn;
+    const requestedSourceStatusColumn = hasExplicitCallbackTable && looksLikeSourceStatusColumn(requestedStatusColumn)
+      ? requestedStatusColumn
+      : "";
+    const resolvedStatusColumn = requestedSourceStatusColumn
+      ? defaultStatusColumn
+      : (requestedStatusColumn || defaultStatusColumn);
+    const resolvedSourceStatusColumn = normalizeCallbackColumnNameOrId(
+      sourceStatusColumnId || requestedSourceStatusColumn || (hasExplicitCallbackTable ? "Server Status" : ""),
+    );
+    const statusSlugField = hasExplicitCallbackTable ? "Request id" : slugFieldId;
     const resolvedStatusRow = callbackRowSelector;
     const hasCallbackIntent = Boolean(
       logTableIdOrName
@@ -960,14 +980,13 @@ pack.addFormula({
         statusRowSelector: resolvedStatusRow,
         statusColumn: resolvedStatusColumn,
         statusColumnNameOrId: resolvedStatusColumn,
-        statusSlugField: slugFieldId,
+        statusSlugField,
         messageColumnId: normalizeCallbackColumnNameOrId(messageColumnId),
-        sourceStatusColumnId: normalizeCallbackColumnNameOrId(sourceStatusColumnId),
-        statusSlugFieldId: slugFieldId,
+        sourceStatusColumnId: resolvedSourceStatusColumn,
+        statusSlugFieldId: statusSlugField,
       }
       : undefined;
 
-    const requestId = createRequestId();
     const payload = {
       requestId,
       idempotencyKey: makeIdempotencyKey(requestId),
@@ -1040,33 +1059,97 @@ pack.addFormula({
       description: "Column name to write the result status back to (default: Server Status)",
       optional: true,
     }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "logTableIdOrName",
+      description: "Optional Coda log table ID/name for backend callback writes",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "logRowId",
+      description: "Optional row ID or selector value in the callback table",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "messageColumnId",
+      description: "Optional detailed message column ID for backend callback",
+      optional: true,
+    }),
+    coda.makeParameter({
+      type: coda.ParameterType.String,
+      name: "sourceStatusColumnId",
+      description: "Optional source-row status column ID to mirror job state",
+      optional: true,
+    }),
   ],
   resultType: coda.ValueType.String,
   execute: async (
-    [workerUrl, framerProjectUrl, tableIdOrName, collectionName, slugFieldId, rowId, publish, initialDelayMs, statusColumnId],
+    [
+      workerUrl,
+      framerProjectUrl,
+      tableIdOrName,
+      collectionName,
+      slugFieldId,
+      rowId,
+      publish,
+      initialDelayMs,
+      statusColumnId,
+      logTableIdOrName,
+      logRowId,
+      messageColumnId,
+      sourceStatusColumnId,
+    ],
     context,
   ) => {
     const docId = context.invocationLocation?.docId;
+    const invocationRowId = (context.invocationLocation as unknown as { rowId?: string } | undefined)?.rowId || "";
     if (!docId) {
       throw new coda.UserVisibleError("Could not determine document ID");
     }
 
-    const resolvedStatusColumn = normalizeCallbackColumnNameOrId(statusColumnId, "Server Status");
-    const callbackRowSelector = normalizeCallbackRowSelector(rowId);
+    const requestId = createRequestId();
+    const hasExplicitCallbackTable = Boolean(logTableIdOrName);
+    const callbackTableInput = hasExplicitCallbackTable
+      ? String(logTableIdOrName || "").trim()
+      : "";
+    const callbackTableName = hasExplicitCallbackTable
+      ? normalizeCallbackTableNameOrId(logTableIdOrName, "")
+      : normalizeCallbackTableNameOrId(tableIdOrName, String(tableIdOrName));
+    const explicitLogRowSelector = String(logRowId || "").trim() === String(rowId || "").trim()
+      ? requestId
+      : (logRowId || requestId);
+    const callbackRowSelector = normalizeCallbackRowSelector(
+      hasExplicitCallbackTable ? explicitLogRowSelector : (logRowId || invocationRowId || rowId),
+    );
+    const defaultStatusColumn = logTableIdOrName ? "Status" : "Server Status";
+    const requestedStatusColumn = normalizeCallbackColumnNameOrId(statusColumnId);
+    const requestedSourceStatusColumn = hasExplicitCallbackTable && looksLikeSourceStatusColumn(requestedStatusColumn)
+      ? requestedStatusColumn
+      : "";
+    const resolvedStatusColumn = requestedSourceStatusColumn
+      ? defaultStatusColumn
+      : (requestedStatusColumn || defaultStatusColumn);
+    const resolvedSourceStatusColumn = normalizeCallbackColumnNameOrId(
+      sourceStatusColumnId || requestedSourceStatusColumn || (hasExplicitCallbackTable ? "Server Status" : ""),
+    );
+    const statusSlugField = hasExplicitCallbackTable ? "Request id" : slugFieldId;
 
     const callbackPayload = {
       statusDocId: docId,
-      statusTableIdOrName: normalizeCallbackTableNameOrId(tableIdOrName, String(tableIdOrName)),
-      statusTableInput: "",
+      statusTableIdOrName: callbackTableName || (hasExplicitCallbackTable ? "" : tableIdOrName),
+      statusTableInput: callbackTableInput,
       statusRow: callbackRowSelector,
       statusRowSelector: callbackRowSelector,
       statusColumn: resolvedStatusColumn,
       statusColumnNameOrId: resolvedStatusColumn,
-      statusSlugField: slugFieldId,
-      statusSlugFieldId: slugFieldId,
+      statusSlugField,
+      messageColumnId: normalizeCallbackColumnNameOrId(messageColumnId),
+      sourceStatusColumnId: resolvedSourceStatusColumn,
+      statusSlugFieldId: statusSlugField,
     };
 
-    const requestId = createRequestId();
     const payload = {
       requestId,
       idempotencyKey: makeIdempotencyKey(requestId),

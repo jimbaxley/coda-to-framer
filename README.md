@@ -173,6 +173,22 @@ Use `SyncRowToFramer` for single-row sync (for button actions, including `Modify
 - **Message Column ID** (optional): Target detailed message column ID for callback writes
 - **Source Status Column ID** (optional): Optional source-row status mirror column ID
 
+`DeleteRowFromFramer`
+
+- **Worker URL** (required): Your Vercel API endpoint (e.g., `https://coda-to-framer-node.vercel.app/api/sync`)
+- **Framer Project URL** (required): Your Framer project
+- **Table ID or Name** (required): Source Coda table name or ID
+- **Collection Name** (required): Target Framer managed collection
+- **Slug Field ID** (required): Column name or ID used as slug
+- **Row ID** (required): Slug selector value for the item to remove
+- **Publish** (optional): If true, backend publishes/deploys after removing the item
+- **Initial Delay (ms)** (optional): Delay before processing to allow recent Coda UI edits to become API-visible
+- **Status Column ID** (optional): Target status column name or ID for callback writes
+- **Log Table ID/Name** (optional): Coda table where backend callback status should be written
+- **Log Row ID** (optional): Row ID in the log table used by backend callback
+- **Message Column ID** (optional): Target detailed message column ID for callback writes
+- **Source Status Column ID** (optional): Optional source-row status mirror column ID
+
 `GetSyncStatus`
 
 - **Worker URL** (required): Your Vercel API endpoint
